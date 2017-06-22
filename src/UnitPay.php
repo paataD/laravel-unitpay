@@ -1,11 +1,11 @@
 <?php
 
-namespace PaataD\UnitPay;
+namespace ActionM\UnitPay;
 
 use Illuminate\Http\Request;
-use PaataD\UnitPay\Events\UnitPayEvent;
+use ActionM\UnitPay\Events\UnitPayEvent;
 use Illuminate\Support\Facades\Validator;
-use PaataD\UnitPay\Exceptions\InvalidConfiguration;
+use ActionM\UnitPay\Exceptions\InvalidConfiguration;
 
 class UnitPay
 {
@@ -266,10 +266,11 @@ class UnitPay
         }
 
         // check required found order attributes
+
         $attr = ['UNITPAY_orderStatus', 'UNITPAY_orderSum', 'UNITPAY_orderCurrency'];
 
         foreach ($attr as $k => $value) {
-            if (! $order->getAttribute($value)) {
+            if (! $order->get($value)) {
                 $this->eventFillAndSend('unitpay.error', $value.'Invalid', $request);
 
                 return false;
@@ -279,13 +280,11 @@ class UnitPay
         // compare order attributes vs request params
         $attr = ['UNITPAY_orderSum', 'UNITPAY_orderCurrency'];
         foreach ($attr as $k => $value) {
-            if ($order->getAttribute($value) != $request->input('params.'.str_replace('UNITPAY_', '', $value))) {
+            if ($order->get($value) != $request->input('params.'.str_replace('UNITPAY_', '', $value))) {
                 $this->eventFillAndSend('unitpay.error', $value.'Invalid', $request);
-
                 return false;
             }
         }
-
         return true;
     }
 
@@ -313,8 +312,8 @@ class UnitPay
          *  orderSum
          */
 
-        $order = $callable($request, $request->input('params.account'));
-
+//        $order = $callable($request, $request->input('params.account'));
+        $order = \App\Http\Controllers\PaymentController::searchOrderFilter($request, $request->input('params.account'));
         if (! $this->validateSearchOrderRequiredAttributes($request, $order)) {
             return false;
         }
@@ -338,10 +337,10 @@ class UnitPay
         }
 
         // unset the custom order attributes for Eloquent support
-        unset($order['UNITPAY_orderSum'], $order['UNITPAY_orderCurrency'], $order['UNITPAY_orderStatus']);
+        // unset($order['UNITPAY_orderSum'], $order['UNITPAY_orderCurrency'], $order['UNITPAY_orderStatus']);
 
         // Run PaidOrderFilter callback
-        return $callable($request, $order);
+        return \App\Http\Controllers\PaymentController::paidOrderFilter($request, $order);
     }
 
     /**
@@ -377,7 +376,7 @@ class UnitPay
 
         // If method pay and current order status is paid
         // return success response and notify info
-        if (mb_strtolower($order->UNITPAY_orderStatus) === 'paid') {
+        if (mb_strtolower($order->get('UNITPAY_orderStatus')) === 'paid') {
             $this->eventFillAndSend('unitpay.info', 'order already paid', $request);
 
             return $this->responseOK('OK');
